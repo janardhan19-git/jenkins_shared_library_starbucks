@@ -1,141 +1,128 @@
-@Library('Jenkins_shared_library')
+@Library('Jenkins_shared_library') _
 
 def COLOR_MAP = [
     'FAILURE' : 'danger',
     'SUCCESS' : 'good' 
 ]
 
-pipeline
-{
+pipeline {
     agent any
-    parameters
-    {
-        choice(name:'action',choices:'create\ndelete',description:'Select create or destroy')
-        string(name: 'DOCKER_HUB_USERNAME', defaultValue: 'sammunde', description: 'Docker Hub Username')
+
+    parameters {
+        choice(name: 'action', choices: ['create', 'delete'], description: 'Select create or destroy')
+        string(name: 'DOCKER_HUB_USERNAME', defaultValue: 'janardhanmittapalli', description: 'Docker Hub Username')
         string(name: 'IMAGE_NAME', defaultValue: 'starbucks', description: 'Docker Image Name')
-
-
     }
-    tools
-    {
+
+    tools {
         jdk 'jdk17'
         nodejs 'node16'
     }
-    environment 
-    {
-        SCANNER_HOME= tool 'sonar-scanner'
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
     }
-    stages
-    {
-    stage('clean workspace')
-        {
-            steps
-            {
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
                 cleanWorkspace()
             }
         }
-        stage('checkout from Git')
-        {
-            steps
-            {
-                checkoutGit('https://gitlab.com/s99070408/Starbucks-clone.git','main')
-                // Link to Starbucks webpage git repo
+        stage('Checkout from Git') {
+            steps {
+                checkoutGit('https://github.com/janardhan19-git/Starbucks-clone.git', 'main')
             }
         }
-        stage('sonarqube Analysis')
-        {
-            when {expression {params.action == 'create'}}
-            steps{
+        stage('SonarQube Analysis') {
+            when { expression { params.action == 'create' } }
+            steps {
                 sonarqubeAnalysis()
             }
         }
-        stage('sonarqube QualitGate')
-        {
-            when {expression {params.action == 'create'}}
-            steps{
-                script{
-                    def credentialsId = 'Sonar-Admin-Token'
+        stage('SonarQube QualityGate') {
+            when { expression { params.action == 'create' } }
+            steps {
+                script {
+                    def credentialsId = 'Sonar-token'
                     qualityGate(credentialsId)
                 }
             }
         }
-        stage('Npm')
-        {
-            when {expression{params.action == 'create'}}
-            steps{
+        stage('NPM Install') {
+            when { expression { params.action == 'create' } }
+            steps {
                 npmInstall()
             }
         }
-        stage('Trivy file scan')
-        {
-            when{expression {params.action == 'create'}}
-            steps{
+        stage('Trivy File Scan') {
+            when { expression { params.action == 'create' } }
+            steps {
                 trivyFs()
             }
         }
-        stage('OWASP FS SCAN')
-        {
-            when{expression {params.action == 'create'}}
+        stage('OWASP FS Scan') {
+            when { expression { params.action == 'create' } }
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-        stage('Docker Build')
-        {
-            when {expression{params.action == 'create'}}
-            steps{
-                script{
+        stage('Docker Build') {
+            when { expression { params.action == 'create' } }
+            steps {
+                script {
                     def dockerHubUsername = params.DOCKER_HUB_USERNAME
                     def imageName = params.IMAGE_NAME
                     dockerBuild(dockerHubUsername, imageName)
                 }
             }
         }
-        stage('Trivy image')
-        {
-            when {expression{params.action == 'create'}}
+        stage('Trivy Image Scan') {
+            when { expression { params.action == 'create' } }
             steps {
                 trivyImage()
             }
         }
-        stage('Docker Scout Image') 
-        {
-            when {expression{params.action == 'create'}}
+        stage('Docker Scout Image') {
+            when { expression { params.action == 'create' } }
             steps {
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
-                       sh 'docker-scout quickview sammunde/starbucks:latest'
-                       sh 'docker-scout cves sammunde/starbucks:latest'
-                       sh 'docker-scout recommendations sammunde/starbucks:latest'
-                   }
+                script {
+                    def dockerHubUsername = params.DOCKER_HUB_USERNAME
+                    def imageName = params.IMAGE_NAME
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                        sh "docker-scout quickview ${dockerHubUsername}/${imageName}:latest"
+                        sh "docker-scout cves ${dockerHubUsername}/${imageName}:latest"
+                        sh "docker-scout recommendations ${dockerHubUsername}/${imageName}:latest"
+                    }
                 }
             }
         }
-        stage('Run container')
-        {
-            when {expression{params.action == 'create'}}
-            steps
-            {
+        stage('Run Container') {
+            when { expression { params.action == 'create' } }
+            steps {
                 runContainer()
             }
         }
-        stage('Remove Container')
-        {
-            when {expression{params.action == 'delete'}}
-            steps{
+        stage('Remove Container') {
+            when { expression { params.action == 'delete' } }
+            steps {
                 removeContainer()
             }
         }
     }
-     post {
-         always {
-             echo 'Slack Notifications'
-             slackSend (
-                 channel: '#starbuck-clone',  
-                 color: COLOR_MAP[currentBuild.currentResult],
-                 message: "*${currentBuild.currentResult}:* Job ${env.JOB_NAME} \n build ${env.BUILD_NUMBER} \n time More info at: ${env.BUILD_URL}"
-               )
-           }
-       }
+
+    post {
+        always {
+            emailext (
+                attachLog: true,
+                subject: "'${currentBuild.result}'",
+                body: """Project: ${env.JOB_NAME}<br/>
+                         Build Number: ${env.BUILD_NUMBER}<br/>
+                         URL: ${env.BUILD_URL}<br/>""",
+                to: 'janardhanmittapalli19@gmail.com',
+                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
+            )
+        }
+    }
 }
