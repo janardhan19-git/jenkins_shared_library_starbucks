@@ -85,19 +85,19 @@ pipeline {
             }
         }
         stage('Docker Scout Image') {
-            when { expression { params.action == 'create' } }
-            steps {
-                script {
-                    def dockerHubUsername = params.DOCKER_HUB_USERNAME
-                    def imageName = params.IMAGE_NAME
-                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                        sh "docker-scout quickview ${dockerHubUsername}/${imageName}:latest"
-                        sh "docker-scout cves ${dockerHubUsername}/${imageName}:latest"
-                        sh "docker-scout recommendations ${dockerHubUsername}/${imageName}:latest"
-                    }
-                }
+    when { expression { params.action == 'create' } }
+    steps {
+        script {
+            def image = "${params.DOCKER_HUB_USERNAME}/${params.IMAGE_NAME}:latest"
+            withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                sh "docker-scout quickview ${image}"
+                sh "docker-scout cves ${image}"
+                sh "docker-scout recommendations ${image}"
             }
         }
+    }
+}
+
         stage('Run Container') {
             when { expression { params.action == 'create' } }
             steps {
