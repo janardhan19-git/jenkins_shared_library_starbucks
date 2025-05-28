@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starbucks-app
+  labels:
+    app: starbucks
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starbucks
+  template:
+    metadata:
+      labels:
+        app: starbucks
+    spec:
+      containers:
+        - name: starbucks-container
+          image: janardhanmittapalli/starbucks:latest  # <-- this will be updated by Jenkins
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
