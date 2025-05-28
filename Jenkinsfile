@@ -7,7 +7,7 @@ pipeline {
         choice(name: 'action', choices: ['create', 'delete'], description: 'Select create or destroy')
         string(name: 'DOCKER_HUB_USERNAME', defaultValue: 'janardhanmittapalli', description: 'Docker Hub Username')
         string(name: 'IMAGE_NAME', defaultValue: 'starbucks', description: 'Docker Image Name')
-        string(name: 'K8S_MANIFEST_PATH', defaultValue: 'deployment.yaml', description: 'Path to your K8s deployment YAML')
+        string(name: 'K8S_MANIFEST_PATH', defaultValue: 'k8s/deployment.yaml', description: 'Path to your K8s deployment YAML')
     }
 
     tools {
